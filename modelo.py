@@ -20,39 +20,6 @@ def load(name):
         img = img[:,:,0]
     return img,structures
 
-def img_with_labels(img,structures,alpha = .3):
-    shape = (img.shape[0],img.shape[1],3)
-    final_img = np.zeros(shape,'float32')
-    for i in range(3):
-        final_img[:,:,i] = img
-    for key in structures:
-        filt1 = (structures[key] == 0).astype('float32') + structures[key].astype('float32') * alpha
-        filt2 = (structures[key] == 0).astype('float32') + structures[key].astype('float32') * (1 - alpha)
-        for i in range(3):
-            struc_img = colors[key][i] * structures[key]
-            final_img[:,:,i] = final_img[:,:,i] * filt2 + struc_img * filt1
-    return final_img.astype('uint8')
-
-def plot_pred(img,real,pred,alpha = .3):
-    img_real = img_with_labels(img,real,alpha)
-    img_pred = img_with_labels(img,pred,alpha)
-    res = evaluate(real,pred)
-    for key in res:
-        res[key] = round(res[key][0],2),round(res[key][1],2)
-    rows,index = list(res.values()),list(res.keys())
-    colnames = ['Precision','Recall']
-    fig,ax = plt.subplots(ncols = 3,nrows = 1,figsize = (15,5))
-    ax[0].imshow(img_real)
-    ax[0].axis('off')
-    ax[0].set_title('Real')
-    ax[1].imshow(img_pred)
-    ax[1].axis('off')
-    ax[1].set_title('Prediction')
-    table = ax[2].table(cellText=rows,rowLabels=index,colLabels=colnames,loc = 'center')
-    table.scale(.6,3)
-    ax[2].axis('off')
-    plt.show()
-
 def detect_main_area(img):
     mask = (img > 0).astype('uint8')
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE,(25,25))
