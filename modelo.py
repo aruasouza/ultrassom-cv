@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from skimage.measure import label,regionprops
 import os
 from numba import jit
-from sklearn.metrics import precision_score,recall_score
+from sklearn.metrics import precision_score,recall_score, confusion_matrix
 
 colors = {'artery':np.array([255,0,0]),
           'liver':np.array([255,0,255]),
@@ -149,6 +149,14 @@ def evaluate(true,pred):
         res[org] = (precision_score(t,p,zero_division = 1),recall_score(t,p,zero_division = 1))
     return res
 
+def conf_matrix(true,pred):
+    conf_matrices = {}
+    for org in ORGAOS:
+        p = pred[org].ravel()
+        t = true[org].ravel() if org in true else np.zeros(p.shape, 'uint8')
+        conf_matrices[org] = confusion_matrix(t, p)
+    return conf_matrices
+
 _ = transform(np.zeros((10,10)),(1,1,1,1))
 _ = reverse_transform(np.zeros((10,10)),(1,1,1,1))
 _ = create_mask(np.zeros((5,5)),0,0,(0,0),0)
@@ -160,6 +168,7 @@ class Model:
         self.templates = {org:[cv2.imread(os.path.join(path,'templates',org,name),
                                           cv2.IMREAD_GRAYSCALE) for name in self.templates_names] for org in ORGAOS}
         self.trasholds = trasholds
+        self.best_class = None
     def predict(self,img):
         pred_structures = self.predict_score(img)
         for org in ORGAOS:
@@ -182,10 +191,10 @@ class Model:
             score = subtraction.sum() / classe.sum()
             if score > best_score:
                 best_score = score
-                best_class = i
+                self.best_class = i
         pred_structures = {}
         for org in ORGAOS:
-            template = self.templates[org][best_class]
+            template = self.templates[org][self.best_class]
             canvas = np.zeros((192,256),'uint8')
             n = 30
             canvas[n:-n,n:-n] = template
@@ -199,3 +208,18 @@ class Model:
             cuted[cuted > 255] = 255
             pred_structures[org] = cuted.astype('uint8')
         return pred_structures
+    def get_best_class(self,img):
+        cleaned = clean(img)
+        scaler = create_reshape(cleaned)
+        timg = transform(cleaned,scaler)
+        simg = reduce(timg)
+        rimg = remove_black(simg)
+        best_score = 0
+        for i,classe in enumerate(self.classes):
+            subtraction = rimg.astype('int32') - classe.astype('int32')
+            subtraction[subtraction < 0] = 0
+            score = subtraction.sum() / classe.sum()
+            if score > best_score:
+                best_score = score
+                self.best_class = i
+        return self.best_class 
