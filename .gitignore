@@ -1,4 +1,5 @@
-__pycache__
-ARRAY_FORMAT
-IMAGES
-testar_modelo.ipynb
+__pycache__/
+ARRAY_FORMAT/
+IMAGES/
+transformer/
+
