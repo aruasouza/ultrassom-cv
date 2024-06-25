@@ -5,6 +5,7 @@ from skimage.measure import label,regionprops
 import os
 from numba import jit
 from sklearn.metrics import precision_score,recall_score, confusion_matrix
+from scipy.spatial.distance import mahalanobis
 
 colors = {'artery':np.array([255,0,0]),
           'liver':np.array([255,0,255]),
@@ -161,10 +162,29 @@ _ = transform(np.zeros((10,10)),(1,1,1,1))
 _ = reverse_transform(np.zeros((10,10)),(1,1,1,1))
 _ = create_mask(np.zeros((5,5)),0,0,(0,0),0)
 
+def cos_sim(img1,img2):
+    img1 = img1.astype(np.float32)
+    img2 = img2.astype(np.float32)
+    
+    
+    vec1 = img1.flatten()
+    vec2 = img2.flatten()
+    
+    
+    dot_product = np.dot(vec1, vec2)
+    norm_vec1 = np.linalg.norm(vec1)
+    norm_vec2 = np.linalg.norm(vec2)
+    
+    cosine_sim = dot_product / (norm_vec1 * norm_vec2)
+    
+    return cosine_sim
+
+
+
 class Model:
     def __init__(self,path,trasholds = {'artery': 5, 'liver': 1, 'stomach': 11, 'vein': 3}):
-        self.templates_names = os.listdir(os.path.join(path,'classes'))
-        self.classes = [cv2.imread(os.path.join(path,'classes',name),cv2.IMREAD_GRAYSCALE) for name in self.templates_names]
+        self.templates_names = os.listdir(os.path.join(path,'classes')) 
+        self.classes = [cv2.imread(os.path.join(path,'classes',name),cv2.IMREAD_GRAYSCALE) for name in sorted(self.templates_names)]
         self.templates = {org:[cv2.imread(os.path.join(path,'templates',org,name),
                                           cv2.IMREAD_GRAYSCALE) for name in self.templates_names] for org in ORGAOS}
         self.trasholds = trasholds
@@ -219,6 +239,135 @@ class Model:
             subtraction = rimg.astype('int32') - classe.astype('int32')
             subtraction[subtraction < 0] = 0
             score = subtraction.sum() / classe.sum()
+           
+            if score > best_score:
+                best_score = score
+                self.best_class = i
+        return self.best_class 
+class Model_cos:
+    def __init__(self,path,trasholds = {'artery': 5, 'liver': 1, 'stomach': 11, 'vein': 3}):
+        self.templates_names = os.listdir(os.path.join(path,'classes')) 
+        self.classes = [cv2.imread(os.path.join(path,'classes',name),cv2.IMREAD_GRAYSCALE) for name in sorted(self.templates_names)]
+        self.templates = {org:[cv2.imread(os.path.join(path,'templates',org,name),
+                                          cv2.IMREAD_GRAYSCALE) for name in self.templates_names] for org in ORGAOS}
+        self.trasholds = trasholds
+        self.best_class = None
+    def predict(self,img):
+        pred_structures = self.predict_score(img)
+        for org in ORGAOS:
+            trash = self.trasholds[org]
+            cuted = pred_structures[org]
+            cuted[cuted < trash] = 0
+            cuted[cuted >= trash] = 1
+            pred_structures[org] = cuted
+        return pred_structures
+    def predict_score(self,img):
+        cleaned = clean(img)
+        scaler = create_reshape(cleaned)
+        timg = transform(cleaned,scaler)
+        simg = reduce(timg)
+        rimg = remove_black(simg)
+        best_score = 0
+        for i,classe in enumerate(self.classes):
+            # subtraction = rimg.astype('int32') - classe.astype('int32')
+            # subtraction[subtraction < 0] = 0
+            # score = subtraction.sum() / classe.sum()
+            score = cos_sim(rimg,classe)
+            if score > best_score:
+                best_score = score
+                self.best_class = i
+        pred_structures = {}
+        for org in ORGAOS:
+            template = self.templates[org][self.best_class]
+            canvas = np.zeros((192,256),'uint8')
+            n = 30
+            canvas[n:-n,n:-n] = template
+            org_img = reverse_transform(canvas,scaler).astype('int32')
+            img32 = img.astype('int32')
+            if org in ['artery', 'stomach', 'vein']:
+                cuted = org_img - img32
+            else:
+                cuted = org_img - (245 - img32)
+            cuted[cuted < 0] = 0
+            cuted[cuted > 255] = 255
+            pred_structures[org] = cuted.astype('uint8')
+        return pred_structures
+    def get_best_class(self,img):
+        cleaned = clean(img)
+        scaler = create_reshape(cleaned)
+        timg = transform(cleaned,scaler)
+        simg = reduce(timg)
+        rimg = remove_black(simg)
+        best_score = 0
+        for i,classe in enumerate(self.classes):
+            # subtraction = rimg.astype('int32') - classe.astype('int32')
+            # subtraction[subtraction < 0] = 0
+            # score = subtraction.sum() / classe.sum()
+            score = cos_sim(rimg,classe)
+            if score > best_score:
+                best_score = score
+                self.best_class = i
+        return self.best_class 
+    
+class Model_2:
+    def __init__(self,path,trasholds = {'artery': 5, 'liver': 1, 'stomach': 11, 'vein': 3}):
+        self.templates_names = os.listdir(os.path.join(path,'classes')) 
+        self.classes = [cv2.imread(os.path.join(path,'classes',name),cv2.IMREAD_GRAYSCALE) for name in sorted(self.templates_names)]
+        self.templates = {org:[cv2.imread(os.path.join(path,'templates',org,name),
+                                          cv2.IMREAD_GRAYSCALE) for name in self.templates_names] for org in ORGAOS}
+        self.trasholds = trasholds
+        self.best_class = None
+    def predict(self,img):
+        pred_structures = self.predict_score(img)
+        for org in ORGAOS:
+            trash = self.trasholds[org]
+            cuted = pred_structures[org]
+            cuted[cuted < trash] = 0
+            cuted[cuted >= trash] = 1
+            pred_structures[org] = cuted
+        return pred_structures
+    def predict_score(self,img):
+        cleaned = clean(img)
+        scaler = create_reshape(cleaned)
+        timg = transform(cleaned,scaler)
+        simg = reduce(timg)
+        rimg = remove_black(simg)
+        best_score = 0
+        for i,classe in enumerate(self.classes):
+            subtraction = rimg.astype('int32') - classe.astype('int32')
+            subtraction[subtraction < 0] = 0
+            score = subtraction.sum() / rimg.sum() 
+            if score > best_score: 
+                best_score = score
+                self.best_class = i
+        pred_structures = {}
+        for org in ORGAOS:
+            template = self.templates[org][self.best_class]
+            canvas = np.zeros((192,256),'uint8')
+            n = 30
+            canvas[n:-n,n:-n] = template
+            org_img = reverse_transform(canvas,scaler).astype('int32')
+            img32 = img.astype('int32')
+            if org in ['artery', 'stomach', 'vein']:
+                cuted = org_img - img32
+            else:
+                cuted = org_img - (245 - img32)
+            cuted[cuted < 0] = 0
+            cuted[cuted > 255] = 255
+            pred_structures[org] = cuted.astype('uint8')
+        return pred_structures
+    def get_best_class(self,img):
+        cleaned = clean(img)
+        scaler = create_reshape(cleaned)
+        timg = transform(cleaned,scaler)
+        simg = reduce(timg)
+        rimg = remove_black(simg)
+        best_score = 0
+        for i,classe in enumerate(self.classes):
+            subtraction = rimg.astype('int32') - classe.astype('int32')
+            subtraction[subtraction < 0] = 0
+            score = subtraction.sum() / rimg.sum()   
+           
             if score > best_score:
                 best_score = score
                 self.best_class = i
