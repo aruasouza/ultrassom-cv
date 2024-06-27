@@ -179,6 +179,15 @@ def cos_sim(img1,img2):
     
     return cosine_sim
 
+def find_IOU(y_true, y_pred):
+
+    intersection = np.logical_and(y_true, y_pred).sum()
+    union = np.logical_or(y_true, y_pred).sum()
+
+    iou = intersection / union if union != 0 else 0
+
+    return iou
+
 
 
 class Model:
