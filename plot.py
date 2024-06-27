@@ -2,6 +2,7 @@ import numpy as np
 from sklearn.metrics import precision_score,recall_score
 import matplotlib.pyplot as plt
 
+
 ORGAOS = ['artery', 'liver', 'stomach', 'vein']
 colors = {'artery':np.array([255,0,0]),
           'liver':np.array([255,0,255]),
@@ -44,7 +45,8 @@ def plot_pred(img,real,pred,alpha = .3):
     ax[1].imshow(img_pred)
     ax[1].axis('off')
     ax[1].set_title('Prediction')
-    table = ax[2].table(cellText=rows,rowLabels=index,colLabels=colnames,loc = 'center')
+    
+    table = ax[2].table(cellText=rows,rowLabels=index,colLabels=colnames,loc = 'center',rowColours = [cor/ 255.0 for cor in colors.values()])
     table.scale(.6,3)
     ax[2].axis('off')
     plt.show()
@@ -70,3 +72,5 @@ def plot(img):
     plt.xticks([])
     plt.yticks([])
     plt.show()
+
+
